@@ -15,53 +15,15 @@
 
   .stage {
     position: relative;
-    width: 140px;
-    height: 140px;
+    width: 80px;
+    height: 80px;
     display: flex;
     align-items: center;
     justify-content: center;
     -webkit-app-region: no-drag;
   }
 
-  /* 波形 Canvas — 最底层，覆盖整个 stage */
-  .wave-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 140px;
-    height: 140px;
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  /* 呼吸扩散光环（空闲时的背景效果） */
-  .ring {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 56px;
-    height: 56px;
-    margin: -28px 0 0 -28px;
-    border-radius: 50%;
-    border: 2px solid #1a1a1a;
-    opacity: 0;
-    animation: breathe 3s ease-out infinite;
-    z-index: 2;
-  }
-
-  .ring-2 { animation-delay: 1.5s; }
-
-  .stage.recording .ring {
-    border-color: #c0392b;
-    animation-duration: 0.9s;
-  }
-
-  @keyframes breathe {
-    0% { transform: scale(1); opacity: 0.4; }
-    100% { transform: scale(2.5); opacity: 0; }
-  }
-
-  /* 中心按钮 */
+  /* 中心按钮 — 56x56 */
   .voice-btn {
     position: relative;
     width: 56px;
@@ -72,8 +34,7 @@
     align-items: center;
     justify-content: center;
     border: none;
-    z-index: 3;
-    transition: all 0.3s ease;
+    transition: background 0.3s ease, transform 0.3s ease;
     box-shadow: 0 4px 14px rgba(0,0,0,0.5);
   }
 
@@ -83,54 +44,61 @@
     animation: recPulse 1.2s ease-in-out infinite;
   }
 
-  .stage.processing .voice-btn {
-    background: #ff9500;
-  }
-
-  .stage.done .voice-btn {
-    background: #4cd964;
-  }
+  .stage.processing .voice-btn { background: #ff9500; }
+  .stage.done .voice-btn { background: #4cd964; }
 
   @keyframes recPulse {
     0%, 100% { box-shadow: 0 0 0 6px rgba(192, 57, 43, 0.2); }
     50%      { box-shadow: 0 0 0 14px rgba(192, 57, 43, 0.08); }
   }
 
-  /* 麦克风图标 */
+  /* 麦克风 SVG —— 默认显示，录音时隐藏 */
   .mic-icon {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     color: #fafaf7;
-    stroke-width: 2;
+    stroke-width: 1.8;
+    transition: opacity 0.15s;
   }
+  .stage.recording .mic-icon { opacity: 0; }
 
-  /* 计时器/状态标签 */
+  /* 波形 Canvas —— 覆盖在按钮正中，录音时显示 */
+  .wave-canvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 56px;
+    height: 56px;
+    margin: -28px 0 0 -28px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .stage.recording .wave-canvas { opacity: 1; }
+
+  /* 底部计时器浮标 */
   .label {
     position: absolute;
-    bottom: 4px;
+    bottom: -2px;
     left: 50%;
     transform: translateX(-50%);
     font-family: 'Segoe UI', 'Consolas', monospace;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: #fafaf7;
     background: rgba(26, 26, 26, 0.92);
-    padding: 3px 10px;
-    border-radius: 10px;
+    padding: 2px 8px;
+    border-radius: 8px;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.3s;
-    z-index: 6;
+    pointer-events: none;
   }
-
   .label.visible { opacity: 1; }
 </style>
 </head>
 <body>
   <div class="stage" id="stage">
-    <canvas class="wave-canvas" id="waveCanvas"></canvas>
-    <span class="ring ring-1"></span>
-    <span class="ring ring-2"></span>
     <button class="voice-btn" id="voiceBtn">
       <svg class="mic-icon" viewBox="0 0 24 24" fill="none"
            stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -139,6 +107,7 @@
         <line x1="12" y1="19" x2="12" y2="23"/>
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
+      <canvas class="wave-canvas" id="waveCanvas" width="56" height="56"></canvas>
     </button>
     <div class="label" id="label"></div>
   </div>
@@ -150,12 +119,8 @@
     const canvas = document.getElementById('waveCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Canvas 使用 DPR 保证高清
-    const W = 140, H = 140, CX = W / 2, CY = H / 2;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
-    ctx.scale(dpr, dpr);
+    // Canvas 56x56 物理 = CSS 尺寸（简单模式，不用 DPR）
+    const CX = 28, CY = 28;
 
     let timerInterval = null;
     let startTime = 0;
@@ -163,28 +128,32 @@
     let lastDataTime = 0;
     let recording = false;
 
-    // 画 32 根放射状波形线（环绕按钮外部）
+    // 画 28 根放射线，从中心半径 8 到 22 —— 完全在按钮内部
     function drawWaveform() {
       requestAnimationFrame(drawWaveform);
-      ctx.clearRect(0, 0, W, H);
-
+      ctx.clearRect(0, 0, 56, 56);
       if (!recording) return;
 
-      const BARS = 32;
-      const INNER_R = 36;  // 按钮半径 28 + 8 间距，从按钮外部开始画
-      const MAX_EXT = 24;  // 最大延伸长度
-      const MIN_EXT = 4;   // 静音时的最小长度（让线条始终可见）
+      const BARS = 28;
+      const INNER_R = 8;   // 从中心半径 8 开始
+      const MAX_EXT = 14;  // 最大延伸 14px，最远半径 22
+      const MIN_EXT = 1;   // 静音最小长度（贴着 INNER_R）
 
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = 1.6;
       ctx.lineCap = 'round';
 
-      // 数据新鲜度检查 — 超过 500ms 没新数据认为掉线
+      // 数据新鲜度：>500ms 没收到新数据 = 异常
       const dataFresh = (Date.now() - lastDataTime) < 500;
+
+      // 全局响度（所有频段平均），用于整体强度指示
+      let totalAmp = 0;
+      for (let i = 0; i < currentFreqData.length; i++) totalAmp += currentFreqData[i];
+      const avgAmp = dataFresh ? (totalAmp / currentFreqData.length / 255) : 0;
 
       for (let i = 0; i < BARS; i++) {
         const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2;
         const freqIdx = Math.floor((i / BARS) * currentFreqData.length);
-        const amp = dataFresh ? currentFreqData[freqIdx] / 255 : 0;
+        const amp = dataFresh ? (currentFreqData[freqIdx] / 255) : 0;
         const extLen = INNER_R + MIN_EXT + amp * MAX_EXT;
 
         const x1 = CX + Math.cos(angle) * INNER_R;
@@ -192,20 +161,28 @@
         const x2 = CX + Math.cos(angle) * extLen;
         const y2 = CY + Math.sin(angle) * extLen;
 
-        // 颜色：数据新鲜时白色，否则暗灰（提示数据异常）
-        const alpha = 0.5 + amp * 0.5;
+        // 数据新鲜时白色（随响度加强），异常时暗灰
+        const alpha = 0.55 + amp * 0.45;
         ctx.strokeStyle = dataFresh
           ? `rgba(255, 255, 255, ${alpha})`
-          : `rgba(120, 120, 120, 0.4)`;
+          : `rgba(180, 180, 180, 0.3)`;
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
       }
+
+      // 中心小圆点 —— 响度越大越亮（额外的响度信号）
+      ctx.fillStyle = dataFresh
+        ? `rgba(255, 255, 255, ${0.6 + avgAmp * 0.4})`
+        : 'rgba(150, 150, 150, 0.3)';
+      ctx.beginPath();
+      ctx.arc(CX, CY, 2.5, 0, Math.PI * 2);
+      ctx.fill();
     }
     drawWaveform();
 
-    // 从主窗口接收频谱数据
+    // 从主窗口接收实时频谱数据
     ipcRenderer.on('indicator-waveform-data', (event, data) => {
       currentFreqData = new Uint8Array(data);
       lastDataTime = Date.now();
