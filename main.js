@@ -397,6 +397,11 @@ function createIndicatorWindow() {
   indicatorWindow.loadFile('indicator-window.html');
   indicatorWindow.setIgnoreMouseEvents(false);
 
+  // 转发 indicator 的 console 日志到主进程，便于诊断
+  indicatorWindow.webContents.on('console-message', (event, level, message) => {
+    try { console.log(`[Indicator Console] ${message}`); } catch (e) {}
+  });
+
   // 设置最高置顶级别，防止被其他 alwaysOnTop 窗口遮挡
   indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
 
@@ -405,8 +410,13 @@ function createIndicatorWindow() {
   });
 }
 
+// 挂起的 hide 定时器 — 新录音开始时需要取消
+let indicatorHideTimer = null;
+
 function showIndicator() {
   if (!config.floatingIndicator) return;
+  // 取消任何挂起的 hide 定时器（避免刚显示又被隐藏）
+  if (indicatorHideTimer) { clearTimeout(indicatorHideTimer); indicatorHideTimer = null; }
   if (!indicatorWindow || indicatorWindow.isDestroyed()) {
     createIndicatorWindow();
   }
@@ -443,9 +453,17 @@ function indicatorDone() {
   if (!indicatorWindow || indicatorWindow.isDestroyed()) return;
   indicatorWindow.webContents.send('indicator-done');
   console.log('[Indicator] Done');
+  // 清掉上一次可能挂起的定时器
+  if (indicatorHideTimer) { clearTimeout(indicatorHideTimer); }
   // 显示绿色勾 0.8 秒后隐藏
-  setTimeout(() => {
-    hideIndicator();
+  indicatorHideTimer = setTimeout(() => {
+    indicatorHideTimer = null;
+    // 只有在非录音状态下才隐藏，避免新录音被错误隐藏
+    if (!isRecording) {
+      hideIndicator();
+    } else {
+      console.log('[Indicator] Hide skipped: new recording in progress');
+    }
   }, 800);
 }
 
@@ -1497,7 +1515,19 @@ ipcMain.on('indicator-clicked', () => {
 });
 
 // 中转频谱数据：renderer → indicator window
+let _waveformDataCount = 0;
+let _waveformLastLog = 0;
 ipcMain.on('waveform-data', (event, data) => {
+  _waveformDataCount++;
+  const now = Date.now();
+  // 每 1 秒打印一次统计（数据量 + 峰值）
+  if (now - _waveformLastLog >= 1000) {
+    let max = 0;
+    for (let i = 0; i < data.length; i++) if (data[i] > max) max = data[i];
+    console.log(`[Waveform IPC] ${_waveformDataCount} frames/s, max amp: ${max}/255, indicator visible: ${indicatorWindow && !indicatorWindow.isDestroyed() && indicatorWindow.isVisible()}`);
+    _waveformDataCount = 0;
+    _waveformLastLog = now;
+  }
   if (indicatorWindow && !indicatorWindow.isDestroyed() && indicatorWindow.webContents) {
     indicatorWindow.webContents.send('indicator-waveform-data', data);
   }

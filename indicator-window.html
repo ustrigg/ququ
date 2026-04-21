@@ -127,6 +127,8 @@
     let currentFreqData = new Uint8Array(64);
     let lastDataTime = 0;
     let recording = false;
+    let dataFrameCount = 0;
+    let debugLogTimer = 0;
 
     // 画 28 根放射线，从中心半径 8 到 22 —— 完全在按钮内部
     function drawWaveform() {
@@ -186,6 +188,16 @@
     ipcRenderer.on('indicator-waveform-data', (event, data) => {
       currentFreqData = new Uint8Array(data);
       lastDataTime = Date.now();
+      dataFrameCount++;
+      // 每秒日志一次，诊断是否收到数据
+      const now = Date.now();
+      if (now - debugLogTimer >= 2000) {
+        let max = 0;
+        for (let i = 0; i < currentFreqData.length; i++) if (currentFreqData[i] > max) max = currentFreqData[i];
+        console.log(`[Indicator] recv ${dataFrameCount} frames, max=${max}/255, recording=${recording}`);
+        dataFrameCount = 0;
+        debugLogTimer = now;
+      }
     });
 
     function stopTimer() {
@@ -193,15 +205,19 @@
     }
 
     ipcRenderer.on('indicator-recording', () => {
+      console.log('[Indicator] -> recording');
       stopTimer();
       recording = true;
       stage.className = 'stage recording';
       label.classList.remove('visible');
       currentFreqData = new Uint8Array(64);
       lastDataTime = Date.now();
+      // 强制清 canvas，避免残留
+      ctx.clearRect(0, 0, 56, 56);
     });
 
     ipcRenderer.on('indicator-processing', () => {
+      console.log('[Indicator] -> processing');
       recording = false;
       stage.className = 'stage processing';
       startTime = Date.now();
@@ -213,6 +229,7 @@
     });
 
     ipcRenderer.on('indicator-done', () => {
+      console.log('[Indicator] -> done');
       stopTimer();
       recording = false;
       stage.className = 'stage done';
