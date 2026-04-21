@@ -54,6 +54,11 @@ function updateUI() {
     // Cancel recording hotkey
     document.getElementById('cancelRecordingHotkey').value = config.cancelRecordingHotkey || 'Escape';
 
+    // 防抖动设置
+    document.getElementById('debounceMs').value = config.debounceMs || 300;
+    document.getElementById('minRecordDurationMs').value = config.minRecordDurationMs || 600;
+    document.getElementById('minIdleDurationMs').value = config.minIdleDurationMs || 500;
+
     // Quick trigger hotkey
     document.getElementById('quickTriggerHotkey').value = config.quickTriggerHotkey || '';
 
@@ -103,6 +108,10 @@ async function saveSettings() {
             floatingIndicator: document.getElementById('floatingIndicator').checked,
             // Cancel recording hotkey
             cancelRecordingHotkey: document.getElementById('cancelRecordingHotkey').value.trim(),
+            // 防抖动设置
+            debounceMs: parseInt(document.getElementById('debounceMs').value) || 300,
+            minRecordDurationMs: parseInt(document.getElementById('minRecordDurationMs').value) || 600,
+            minIdleDurationMs: parseInt(document.getElementById('minIdleDurationMs').value) || 500,
             // Quick trigger hotkey
             quickTriggerHotkey: document.getElementById('quickTriggerHotkey').value.trim(),
         };

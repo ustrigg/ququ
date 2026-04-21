@@ -200,6 +200,37 @@
             </div>
         </div>
 
+        <div class="form-group" style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed #ddd;">
+            <label style="font-weight: 600; color: #444;">🎛️ 防抖动设置 (针对旋钮/键盘抖动)</label>
+            <div class="info" style="margin-top: 6px; margin-bottom: 10px;">
+                如果使用旋钮或容易抖动的按键触发录音，可调整下方参数避免误触发。
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="debounceMs">事件间最小间隔 (毫秒)</label>
+            <input type="number" id="debounceMs" min="0" max="2000" step="50" placeholder="300" />
+            <div class="info" style="margin-top: 5px;">
+                连续两次触发事件的最小时间间隔。默认 300ms。
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="minRecordDurationMs">最小录音时长 (毫秒)</label>
+            <input type="number" id="minRecordDurationMs" min="0" max="5000" step="100" placeholder="600" />
+            <div class="info" style="margin-top: 5px;">
+                录音启动后至少持续这么久才允许停止，避免刚启动就被抖动关闭。默认 600ms。
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="minIdleDurationMs">最小空闲时长 (毫秒)</label>
+            <input type="number" id="minIdleDurationMs" min="0" max="5000" step="100" placeholder="500" />
+            <div class="info" style="margin-top: 5px;">
+                录音停止后至少空闲这么久才允许再次启动，避免刚停止就被抖动重启。默认 500ms。
+            </div>
+        </div>
+
         <div class="form-group">
             <label for="textRefinementHotkey">文本优化开关热键 (留空禁用)</label>
             <input type="text" id="textRefinementHotkey" placeholder="F6" />

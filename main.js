@@ -88,6 +88,10 @@ let config = {
   modeToggleHotkey: 'Ctrl+Shift+M',
   stopRecordingHotkey: 'Ctrl+Shift+E', // 停止录音快捷键
   cancelRecordingHotkey: 'Escape', // 取消录音快捷键（丢弃不转写）
+  // 防抖参数（针对旋钮/键盘抖动）
+  debounceMs: 300,              // 事件间最小间隔
+  minRecordDurationMs: 600,     // 启动后多久内忽略停止请求
+  minIdleDurationMs: 500,       // 停止后多久内忽略启动请求
   // Translation settings
   translationEnabled: true,
   translationServerUrl: 'http://192.168.2.2:1234',
@@ -513,43 +517,58 @@ function createTray() {
 let isTogglingRecording = false;
 let lastRecordingToggle = 0;
 let recordingStartTime = 0;
+let recordingStopTime = 0; // 上次停止录音的时间
 let recordingTriggerSource = 'hotkey'; // 'hotkey' | 'click' - 录音触发来源
+
+// 防抖参数 — 针对旋钮/键盘抖动
+// 可通过 config.debounceMs / config.minRecordDurationMs / config.minIdleDurationMs 覆盖
+function getDebounceMs() { return (config && config.debounceMs) || 300; }
+function getMinRecordDurationMs() { return (config && config.minRecordDurationMs) || 600; }
+function getMinIdleDurationMs() { return (config && config.minIdleDurationMs) || 500; }
 
 function toggleRecording() {
   const now = Date.now();
   console.log('========================================');
-  console.log('toggleRecording TRIGGERED at:', now);
-  console.log('isTogglingRecording:', isTogglingRecording);
-  console.log('lastRecordingToggle:', lastRecordingToggle);
-  console.log('Current recording state:', isRecording);
-  console.log('Time since last toggle:', now - lastRecordingToggle, 'ms');
+  console.log('toggleRecording TRIGGERED at:', now, '| state:', isRecording ? 'RECORDING' : 'IDLE');
+  console.log('Since last toggle:', now - lastRecordingToggle, 'ms');
   console.log('========================================');
 
-  // Strategy: Simple keyboard bounce protection only
-  // User presses once -> keyboard triggers multiple events within ~2.5 seconds
-  // Solution: Ignore all events within 2.5 seconds of last ACCEPTED toggle
-  // This allows: press -> start recording, wait, press -> stop recording immediately
-
-  // Single protection: Ignore rapid consecutive events from keyboard bounce
-  // After accepting a toggle, ignore all events for 500ms
-  if (now - lastRecordingToggle < 500) {
-    console.log('>>> KEYBOARD BOUNCE! Ignoring event within 500ms. (time since last:', now - lastRecordingToggle, 'ms)');
+  // ===== 第1层：全局抖动窗口（事件间最小间隔）=====
+  if (now - lastRecordingToggle < getDebounceMs()) {
+    console.log(`>>> [Debounce-1] 事件抖动! 忽略 (距上次 ${now - lastRecordingToggle}ms < ${getDebounceMs()}ms)`);
     return;
   }
 
-  lastRecordingToggle = now;
+  // ===== 第2层：最小录音时长保护（避免刚启动就被抖动关闭）=====
+  if (isRecording && recordingStartTime > 0) {
+    const recordedMs = now - recordingStartTime;
+    if (recordedMs < getMinRecordDurationMs()) {
+      console.log(`>>> [Debounce-2] 最小录音时长保护! 录音才 ${recordedMs}ms < ${getMinRecordDurationMs()}ms，忽略停止请求`);
+      return;
+    }
+  }
 
-  console.log('>>> EXECUTING toggleRecording, current state:', isRecording);
+  // ===== 第3层：最小空闲时长保护（避免刚停止就被抖动启动）=====
+  if (!isRecording && recordingStopTime > 0) {
+    const idleMs = now - recordingStopTime;
+    if (idleMs < getMinIdleDurationMs()) {
+      console.log(`>>> [Debounce-3] 最小空闲时长保护! 空闲才 ${idleMs}ms < ${getMinIdleDurationMs()}ms，忽略启动请求`);
+      return;
+    }
+  }
+
+  lastRecordingToggle = now;
+  console.log('>>> ACCEPTED toggle, switching state from', isRecording, 'to', !isRecording);
   isRecording = !isRecording;
-  console.log('>>> NEW STATE:', isRecording);
 
   if (isRecording) {
     recordingStartTime = now;
     registerCancelHotkey(); // 录音开始，注册 Escape
-    console.log('>>> Recording started at:', recordingStartTime);
+    console.log('>>> Recording STARTED at:', recordingStartTime);
   } else {
+    recordingStopTime = now;
     unregisterCancelHotkey(); // 录音停止，取消 Escape
-    console.log('>>> Recording stopped after:', now - recordingStartTime, 'ms');
+    console.log('>>> Recording STOPPED after:', now - recordingStartTime, 'ms');
   }
 
   // Send IPC message to renderer process - with safety check
@@ -778,7 +797,6 @@ function stopRecording() {
   const now = Date.now();
   console.log('========================================');
   console.log('stopRecording TRIGGERED at:', now);
-  console.log('Current recording state:', isRecording);
   console.log('========================================');
 
   // 只在录音状态时才停止
@@ -787,13 +805,23 @@ function stopRecording() {
     return;
   }
 
-  // 防止重复触发
-  if (now - lastRecordingToggle < 500) {
-    console.log('>>> DEBOUNCE! Ignoring stop request within 500ms');
+  // 事件抖动窗口
+  if (now - lastRecordingToggle < getDebounceMs()) {
+    console.log(`>>> [Debounce-1] stop 请求抖动，忽略 (距上次 ${now - lastRecordingToggle}ms)`);
     return;
   }
 
+  // 最小录音时长保护
+  if (recordingStartTime > 0) {
+    const recordedMs = now - recordingStartTime;
+    if (recordedMs < getMinRecordDurationMs()) {
+      console.log(`>>> [Debounce-2] 录音才 ${recordedMs}ms，忽略 stop 请求`);
+      return;
+    }
+  }
+
   lastRecordingToggle = now;
+  recordingStopTime = now;
 
   console.log('>>> STOPPING recording');
   isRecording = false;
@@ -835,12 +863,14 @@ function cancelRecording() {
     return;
   }
 
-  if (now - lastRecordingToggle < 500) {
-    console.log('>>> DEBOUNCE! Ignoring cancel request within 500ms');
+  // 事件抖动窗口（cancel 不做最小录音时长限制，用户主动取消应立即响应）
+  if (now - lastRecordingToggle < getDebounceMs()) {
+    console.log(`>>> [Debounce-1] cancel 请求抖动，忽略 (距上次 ${now - lastRecordingToggle}ms)`);
     return;
   }
 
   lastRecordingToggle = now;
+  recordingStopTime = now;
 
   console.log('>>> CANCELLING recording (discard audio)');
   isRecording = false;
