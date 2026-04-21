@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蛐蛐语音输入 - 启动中</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 48px 56px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            min-width: 420px;
+        }
+
+        .logo {
+            font-size: 72px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .version {
+            font-size: 13px;
+            opacity: 0.8;
+            margin-bottom: 48px;
+            font-weight: 300;
+        }
+
+        .progress-container {
+            margin-bottom: 32px;
+        }
+
+        .progress-label {
+            font-size: 14px;
+            margin-bottom: 12px;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #66bb6a);
+            border-radius: 3px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.6);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .status-text {
+            font-size: 13px;
+            opacity: 0.85;
+            min-height: 20px;
+            margin-top: 12px;
+        }
+
+        .tip {
+            margin-top: 24px;
+            padding: 14px 18px;
+            font-size: 12px;
+            opacity: 0.85;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            line-height: 1.6;
+        }
+
+        .tip.error {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: rgba(255, 107, 107, 0.4);
+            color: #ffcdd2;
+        }
+
+        .tip.success {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: rgba(76, 175, 80, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🦗</div>
+        <h1>蛐蛐语音输入</h1>
+        <div class="version">Ququ Voice Input v1.0.0</div>
+
+        <div class="progress-container">
+            <div class="progress-label" id="progressLabel">启动中...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="status-text" id="statusText"></div>
+        </div>
+
+        <div class="tip" id="mainTip">💡 应用将在后台系统托盘运行，按 Ctrl+Shift+R 开始录音</div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        let loadingTimeout = null;
+        let lastProgress = 0;
+
+        // 状态文本映射
+        const statusTexts = {
+            1: '启动应用程序...',
+            2: '加载配置文件...',
+            3: '初始化语音识别引擎...',
+            4: '注册全局快捷键...',
+            5: '准备完成...'
+        };
+
+        // Set a loading timeout (30 seconds)
+        loadingTimeout = setTimeout(() => {
+            console.log('[Loading] Loading timeout - progress stuck at:', lastProgress);
+
+            const tip = document.getElementById('mainTip');
+            tip.classList.add('error');
+            tip.textContent = '⚠️ 启动超时，可能是服务器启动失败。请检查日志并重启应用。';
+        }, 30000);
+
+        // Listen for loading progress updates
+        ipcRenderer.on('loading-progress', (event, data) => {
+            const { step, progress } = data;
+            lastProgress = progress;
+
+            console.log('[Loading] Progress update:', step, progress);
+
+            // Update progress bar
+            const progressFill = document.getElementById('progressFill');
+            progressFill.style.width = progress + '%';
+
+            // Update status text
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = statusTexts[step] || '';
+
+            // If we reach 100%, clear the timeout
+            if (progress >= 100) {
+                if (loadingTimeout) {
+                    clearTimeout(loadingTimeout);
+                    loadingTimeout = null;
+                }
+            }
+        });
+
+        // Listen for server logs (optional, for debugging)
+        ipcRenderer.on('server-log', (event, logMessage) => {
+            console.log('[Server Log]', logMessage);
+        });
+
+        // Listen for loading complete
+        ipcRenderer.on('loading-complete', () => {
+            console.log('[Loading] Loading complete event received');
+
+            // Clear timeout if still active
+            if (loadingTimeout) {
+                clearTimeout(loadingTimeout);
+                loadingTimeout = null;
+            }
+
+            // Set progress to 100%
+            const progressFill = document.getElementById('progressFill');
+            const progressLabel = document.getElementById('progressLabel');
+            const statusText = document.getElementById('statusText');
+
+            progressFill.style.width = '100%';
+            progressLabel.textContent = '启动完成';
+            statusText.textContent = '';
+
+            // Update tip message
+            const tip = document.getElementById('mainTip');
+            tip.classList.add('success');
+            tip.textContent = '✓ 启动完成！应用已在系统托盘运行，按 Ctrl+Shift+R 开始录音';
+        });
+
+        // Listen for loading error
+        ipcRenderer.on('loading-error', (event, errorData) => {
+            console.error('[Loading] Loading error:', errorData);
+
+            // Clear timeout
+            if (loadingTimeout) {
+                clearTimeout(loadingTimeout);
+                loadingTimeout = null;
+            }
+
+            // Show error in UI
+            const tip = document.getElementById('mainTip');
+            tip.classList.add('error');
+            tip.textContent = '⚠️ ' + (errorData.message || '启动失败，请查看日志');
+
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = '启动失败';
+        });
+
+        // Clean up on unload
+        window.addEventListener('beforeunload', () => {
+            if (loadingTimeout) {
+                clearTimeout(loadingTimeout);
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = '启动应用程序...';
+        });
+    </script>
+</body>
+</html>

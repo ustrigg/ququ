@@ -1,0 +1,62 @@
+# Qwen3-ASR Docker Compose 配置
+# 使用官方镜像 qwenllm/qwen3-asr
+#
+# 使用方法:
+#   docker-compose up -d        # 启动服务
+#   docker-compose logs -f      # 查看日志
+#   docker-compose down         # 停止服务
+#
+# 首次启动会自动下载模型，可能需要较长时间
+
+services:
+  qwen3-asr:
+    image: qwenllm/qwen3-asr:latest
+    container_name: qwen3-asr
+    restart: unless-stopped
+
+    # GPU 支持 (需要 nvidia-docker)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    ports:
+      - "8002:8000"
+
+    # 启动 vLLM 服务器
+    command: >
+      qwen-asr-serve Qwen/Qwen3-ASR-1.7B
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.7
+      --max-model-len 32768
+
+    volumes:
+      # 持久化模型缓存，避免重复下载
+      - qwen3-asr-cache:/root/.cache/huggingface
+      - qwen3-asr-modelscope:/root/.cache/modelscope
+
+    environment:
+      # 使用 ModelScope 镜像加速下载（中国大陆）
+      - MODELSCOPE_CACHE=/root/.cache/modelscope
+      - HF_HOME=/root/.cache/huggingface
+
+    # 共享内存设置（vLLM 需要）
+    shm_size: '4gb'
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # 模型加载需要时间（5分钟）
+
+volumes:
+  qwen3-asr-cache:
+    name: qwen3-asr-cache
+  qwen3-asr-modelscope:
+    name: qwen3-asr-modelscope

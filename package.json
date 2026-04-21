@@ -1,0 +1,60 @@
+{
+  "name": "ququ",
+  "version": "1.2.0",
+  "description": "Voice input tool with FunASR integration",
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "pack": "electron-builder",
+    "asr:serve": "python funasr_server.py"
+  },
+  "keywords": [
+    "voice",
+    "input",
+    "asr",
+    "funasr"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "axios": "^1.5.0"
+  },
+  "build": {
+    "appId": "com.ququ.voice",
+    "productName": "Ququ Voice Input",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist",
+      "!node_modules/.cache",
+      "!*.py",
+      "!*.md",
+      "!*.log",
+      "!.claude",
+      "!.git"
+    ],
+    "asarUnpack": [
+      "node_modules/axios/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/app-icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/app-icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/app-icon.png"
+    }
+  }
+}

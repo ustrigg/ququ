@@ -1,0 +1,92 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+
+# Electron
+dist/
+build/
+*.app
+*.dmg
+*.exe
+*.msi
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# FunASR Models
+models/
+*.pth
+*.pt
+*.bin
+
+# Logs and data
+export/logs/
+export/pending/
+temp/
+logs/
+*.log
+
+# Configuration
+config.json
+.env
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.bat
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Cache
+.cache/
+.tmp/
+*.tmp
+
+# Audio files
+*.wav
+*.mp3
+*.aac
+*.flac
+
+# Build artifacts
+ququ-startup.bat
+# Recordings
+recordings/
+
+# Claude Code / Spec-workflow
+.claude/
+.spec-workflow/
+
+# Project-specific temp
+/tmp/
+setup-mac.sh.log
+
+# Release artifacts
+release-mac/
+docs/release-mac/

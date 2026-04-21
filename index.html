@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ququ Voice Input Settings</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            font-size: 13px;
+        }
+
+        .header {
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            margin: -20px -20px 20px -20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .section h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        select, input[type="text"], input[type="number"], input[type="url"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .recording-status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .recording-status.recording {
+            background: #ffebee;
+            color: #c62828;
+            border: 2px solid #e57373;
+        }
+
+        .recording-status.stopped {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 2px solid #81c784;
+        }
+
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #45a049;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .info {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <span>Ququ Voice Input Settings</span>
+        <button class="close-btn" onclick="window.close()">×</button>
+    </div>
+
+    <div id="recordingStatus" class="recording-status stopped">
+        录音已停止 - 按 Ctrl+Shift+R 开始/停止录音
+    </div>
+
+    <div id="modeStatus" class="recording-status stopped" style="background: #e3f2fd; color: #1565c0; border-color: #90caf9;">
+        当前模式：转写模式 - 按 Ctrl+Shift+M 切换模式
+    </div>
+
+    <div class="section">
+        <h3>基本设置</h3>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="autoLaunch" />
+                <label for="autoLaunch">开机自动启动</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="mode">模式</label>
+            <select id="mode">
+                <option value="transcribe">转写模式 (仅识别中文)</option>
+                <option value="translate">翻译模式 (中文→英文)</option>
+                <option value="dual">双语模式 (显示中英文对照)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="targetLanguage">目标语言</label>
+            <select id="targetLanguage">
+                <option value="zh-cn">中文(简体)</option>
+                <option value="zh-tw">中文(繁体)</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="hotkey">录音热键 (R=Record)</label>
+            <input type="text" id="hotkey" placeholder="Ctrl+Shift+R" />
+        </div>
+
+        <div class="form-group">
+            <label for="modeToggleHotkey">模式切换热键 (M=Mode)</label>
+            <input type="text" id="modeToggleHotkey" placeholder="Ctrl+Shift+M" />
+        </div>
+
+        <div class="form-group">
+            <label for="quickTriggerHotkey">快捷录音键 (留空禁用)</label>
+            <input type="text" id="quickTriggerHotkey" placeholder="F9" />
+            <div class="info" style="margin-top: 5px;">
+                额外的简单快捷键，如 F9、Pause 等。与上方录音热键同时生效，RDP 远程桌面兼容。
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="cancelRecordingHotkey">取消录音热键 (丢弃不转写)</label>
+            <input type="text" id="cancelRecordingHotkey" placeholder="Escape" />
+            <div class="info" style="margin-top: 5px;">
+                录音中按此键可立即取消录音并丢弃音频，不进入转写流程。默认 Escape。
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="textRefinementHotkey">文本优化开关热键 (留空禁用)</label>
+            <input type="text" id="textRefinementHotkey" placeholder="F6" />
+            <div class="info" style="margin-top: 5px;">
+                按此键可快速开启/关闭文本优化（口语转书面语）功能。默认 F6。
+            </div>
+        </div>
+
+    </div>
+
+    <div class="section">
+        <h3>上屏设置</h3>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="autoUpload" />
+                <label for="autoUpload">自动上屏</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="uploadDelay">上屏延迟 (毫秒)</label>
+            <input type="number" id="uploadDelay" min="0" max="10000" step="100" />
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Webhook 设置</h3>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="webhookEnabled" />
+                <label for="webhookEnabled">启用 Webhook</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="webhookUrl">Webhook URL</label>
+            <input type="url" id="webhookUrl" placeholder="https://example.com/webhook" />
+        </div>
+
+        <div class="form-group">
+            <label for="webhookHeaders">请求头 (JSON格式)</label>
+            <input type="text" id="webhookHeaders" placeholder='{"Authorization": "Bearer token"}' />
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>ASR 服务器设置</h3>
+
+        <div class="form-group">
+            <label for="asrBackend">ASR 引擎</label>
+            <select id="asrBackend">
+                <option value="paraformer">Paraformer (FunASR) - 阿里达摩院</option>
+                <option value="qwen3">Qwen3-ASR - 通义千问语音</option>
+                <option value="auto">自动选择 (优先Qwen3)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="asrServerUrl">Paraformer 服务器地址</label>
+            <input type="url" id="asrServerUrl" placeholder="http://localhost:8001" />
+        </div>
+
+        <div class="form-group">
+            <label for="qwen3AsrServerUrl">Qwen3-ASR 服务器地址</label>
+            <input type="url" id="qwen3AsrServerUrl" placeholder="http://127.0.0.1:8002" />
+        </div>
+
+        <div class="form-group">
+            <label for="qwen3AsrModel">Qwen3-ASR 模型</label>
+            <input type="text" id="qwen3AsrModel" placeholder="Qwen/Qwen3-ASR-1.7B" />
+        </div>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="asrFallbackEnabled" />
+                <label for="asrFallbackEnabled">启用回退 (主引擎失败时自动切换)</label>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>Paraformer:</strong> Docker 部署，CPU/GPU 均可，启动快速。<br>
+            <strong>Qwen3-ASR:</strong> Docker 部署，需要 GPU (~8GB显存)，精度更高。<br>
+            <strong>自动选择:</strong> 优先 Qwen3，失败自动回退到 Paraformer。<br>
+            <em>启动命令: python qwen_asr_server.py start</em>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>翻译设置</h3>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="translationEnabled" />
+                <label for="translationEnabled">启用翻译功能</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="translationServerUrl">翻译服务器地址</label>
+            <input type="url" id="translationServerUrl" placeholder="http://192.168.2.2:1234" />
+        </div>
+
+        <div class="form-group">
+            <label for="translationStyle">翻译风格</label>
+            <select id="translationStyle">
+                <option value="professional">专业/正式</option>
+                <option value="casual">日常/轻松</option>
+                <option value="academic">学术/严谨</option>
+                <option value="business">商务</option>
+                <option value="technical">技术文档</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="translationModel">翻译模型</label>
+            <input type="text" id="translationModel" placeholder="gpt-oss-20b" />
+        </div>
+
+        <div class="info">
+            翻译功能使用本地部署的 GPT-OSS-20B 模型，将中文口语优化翻译为英文书面语。按 Ctrl+Shift+M 可快速切换转写/翻译/双语模式。
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>文本优化设置</h3>
+
+        <div class="form-group">
+            <label for="textRefinementServerUrl">优化服务器地址</label>
+            <input type="url" id="textRefinementServerUrl" placeholder="http://192.168.1.41:1234" />
+        </div>
+
+        <div class="form-group">
+            <label for="textRefinementModel">优化模型</label>
+            <input type="text" id="textRefinementModel" placeholder="Qwen3.5-35B-A3B-Q4_K_M.gguf" />
+        </div>
+
+        <div class="form-group">
+            <label for="textRefinementPrompt">优化提示词 <span style="color:#999;font-weight:normal">(留空使用默认提示词)</span></label>
+            <textarea id="textRefinementPrompt" rows="14" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;resize:vertical;padding:8px;border:1px solid #ddd;border-radius:4px;" placeholder="你是一位语言整理助手。清理语音转写中的口语噪音。&#10;&#10;必须删除：&#10;- 填充词：嗯、啊、呃、额、哦&#10;- 无意义连接词：那个、就是、就是说、然后呢、对吧&#10;- 犹豫词：这个这个、怎么说&#10;- 口吃重复：连续重复的字词&#10;- 句首多余语气：嗯所以、啊对&#10;- 句尾赘词：啊、吧、呢、是吧&#10;&#10;保留：原始句子结构、所有实际内容、专有名词、英文&#10;禁止：改写句意、添加解释、转换为书面语&#10;输出：只输出清理后的文本"></textarea>
+        </div>
+
+        <div class="info">
+            文本优化使用 LLM 将口语化的语音转写结果优化为自然的书面语。可在主窗口中通过开关按钮启用/禁用。提示词末尾会自动追加「原文：{转写文本}\n优化后：」。
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>录音反馈设置</h3>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="soundFeedback" />
+                <label for="soundFeedback">录音开始/停止提示音</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="floatingIndicator" />
+                <label for="floatingIndicator">悬浮录音指示器（屏幕右下角红点）</label>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn" onclick="saveSettings()">保存设置</button>
+
+    <div class="info">
+        按 Ctrl+Shift+R 开始/停止录音，按 Ctrl+Shift+M 切换模式。录音完成后会自动进行语音识别并根据设置处理结果。
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
