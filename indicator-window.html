@@ -133,47 +133,73 @@
     let recording = false;
     let dataFrameCount = 0;
     let debugLogTimer = 0;
+    // 动态归一化 — 跟踪最近峰值，自适应响度范围
+    let recentPeak = 50;  // 初始假定 50/255 为正常最大
+    let smoothedBars = new Float32Array(36); // 每根线的平滑长度
 
-    // 画 36 根放射线，从中心向外延伸最远至 65px（突破按钮边界）
+    // 画 36 根放射线，动态归一化 + 非线性映射，小声也有明显波动
     function drawWaveform() {
       requestAnimationFrame(drawWaveform);
       ctx.clearRect(0, 0, 140, 140);
       if (!recording) return;
 
       const BARS = 36;
-      const INNER_R = 6;   // 从中心半径 6 开始（在按钮内部）
-      const QUIET_R = 14;  // 静音时的基线长度
-      const MAX_R = 62;    // 最大外延半径（超出按钮边缘 30+ 像素）
+      const INNER_R = 6;
+      const QUIET_R = 12;
+      const MAX_R = 62;
 
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
 
       const dataFresh = (Date.now() - lastDataTime) < 500;
 
-      // 全局平均响度 — 驱动中心点 + 整体强度
+      // ==== 找当前帧最大振幅（用于动态归一化）====
+      let frameMax = 0;
       let totalAmp = 0;
-      for (let i = 0; i < currentFreqData.length; i++) totalAmp += currentFreqData[i];
+      for (let i = 0; i < currentFreqData.length; i++) {
+        if (currentFreqData[i] > frameMax) frameMax = currentFreqData[i];
+        totalAmp += currentFreqData[i];
+      }
       const avgAmp = dataFresh ? (totalAmp / currentFreqData.length / 255) : 0;
+
+      // 动态跟踪最近峰值（衰减 + 快速上升）
+      if (dataFresh) {
+        recentPeak = Math.max(recentPeak * 0.995, frameMax, 30); // 峰值慢速衰减，下限 30
+      }
+      // 归一化因子：当前峰值作为 100% 基准
+      const normalize = recentPeak > 10 ? (255 / recentPeak) : 1;
 
       for (let i = 0; i < BARS; i++) {
         const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2;
+        // 每根线对应一个频段，取多个 bin 平均让更平滑
         const freqIdx = Math.floor((i / BARS) * currentFreqData.length);
-        const amp = dataFresh ? (currentFreqData[freqIdx] / 255) : 0;
-        // 线段长度：静音时贴近按钮，响度越大延伸越远
-        const extLen = QUIET_R + amp * (MAX_R - QUIET_R);
+        const rawAmp = dataFresh ? (currentFreqData[freqIdx] / 255) : 0;
 
+        // 动态归一化：让最近峰值对应 100%
+        const normAmp = Math.min(1, rawAmp * normalize);
+        // 非线性映射：平方根让小振幅更明显（0.1 -> 0.316, 0.3 -> 0.548）
+        const mapped = Math.sqrt(normAmp);
+
+        // 目标长度
+        const targetLen = QUIET_R + mapped * (MAX_R - QUIET_R);
+        // 平滑过渡：快速上升（0.6），慢速衰减（0.85）避免闪烁
+        const prev = smoothedBars[i] || QUIET_R;
+        const alpha = targetLen > prev ? 0.6 : 0.15;
+        smoothedBars[i] = prev + (targetLen - prev) * alpha;
+
+        const extLen = smoothedBars[i];
         const x1 = CX + Math.cos(angle) * INNER_R;
         const y1 = CY + Math.sin(angle) * INNER_R;
         const x2 = CX + Math.cos(angle) * extLen;
         const y2 = CY + Math.sin(angle) * extLen;
 
-        // 颜色：内部（按钮上）白色半透，外部（透明背景上）随距离变亮
-        // 用线性渐变让每根线段从内到外过渡
+        // 颜色：长度越长越亮
+        const brightness = mapped;
         const grad = ctx.createLinearGradient(x1, y1, x2, y2);
         if (dataFresh) {
-          grad.addColorStop(0, `rgba(255, 255, 255, ${0.85})`);
-          grad.addColorStop(0.5, `rgba(255, 255, 255, ${0.7 + amp * 0.3})`);
-          grad.addColorStop(1, `rgba(255, 200, 180, ${0.2 + amp * 0.6})`);
+          grad.addColorStop(0, `rgba(255, 255, 255, 0.95)`);
+          grad.addColorStop(0.5, `rgba(255, 255, 255, ${0.75 + brightness * 0.25})`);
+          grad.addColorStop(1, `rgba(255, 180, 160, ${0.3 + brightness * 0.7})`);
         } else {
           grad.addColorStop(0, 'rgba(180, 180, 180, 0.4)');
           grad.addColorStop(1, 'rgba(180, 180, 180, 0.15)');
@@ -185,11 +211,12 @@
         ctx.stroke();
       }
 
-      // 响度大时画一个光晕外圈（按钮外轮廓），让大声响时视觉更明显
-      if (dataFresh && avgAmp > 0.1) {
-        const glowR = BTN_R + 6 + avgAmp * 20;
+      // 响度光晕（用归一化的 avgAmp）
+      const normAvg = Math.min(1, avgAmp * normalize);
+      if (dataFresh && normAvg > 0.05) {
+        const glowR = BTN_R + 4 + normAvg * 28;
         const glowGrad = ctx.createRadialGradient(CX, CY, BTN_R, CX, CY, glowR);
-        glowGrad.addColorStop(0, `rgba(255, 80, 80, ${avgAmp * 0.4})`);
+        glowGrad.addColorStop(0, `rgba(255, 80, 80, ${normAvg * 0.5})`);
         glowGrad.addColorStop(1, 'rgba(255, 80, 80, 0)');
         ctx.fillStyle = glowGrad;
         ctx.beginPath();
@@ -225,6 +252,9 @@
       label.classList.remove('visible');
       currentFreqData = new Uint8Array(64);
       lastDataTime = Date.now();
+      // 重置平滑状态和峰值跟踪
+      smoothedBars = new Float32Array(36);
+      recentPeak = 50;
       ctx.clearRect(0, 0, 140, 140);
     });
 
