@@ -882,11 +882,21 @@ function startWaveformVisualization(stream) {
 
         console.log('[Waveform] Visualization started');
 
+        // 为向 indicator 发送频谱数据做节流计数
+        let frameCounter = 0;
+
         // Animation loop
         function draw() {
             animationFrameId = requestAnimationFrame(draw);
 
             analyser.getByteFrequencyData(dataArray);
+
+            // 每 2 帧向 indicator 发一次频谱数据（约 30fps，避免 IPC 过载）
+            frameCounter++;
+            if (frameCounter % 2 === 0) {
+                // TypedArray 不能直接 IPC 传输，转为普通数组
+                ipcRenderer.send('waveform-data', Array.from(dataArray));
+            }
 
             canvasCtx.fillStyle = 'rgba(102, 126, 234, 0.1)';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
