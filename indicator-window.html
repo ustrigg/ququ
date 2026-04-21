@@ -15,15 +15,53 @@
 
   .stage {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 140px;
+    height: 140px;
     display: flex;
     align-items: center;
     justify-content: center;
     -webkit-app-region: no-drag;
   }
 
-  /* 中心按钮 — 仿 ustrigg.com 设计 */
+  /* 波形 Canvas — 最底层，覆盖整个 stage */
+  .wave-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 140px;
+    height: 140px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* 呼吸扩散光环（空闲时的背景效果） */
+  .ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 56px;
+    height: 56px;
+    margin: -28px 0 0 -28px;
+    border-radius: 50%;
+    border: 2px solid #1a1a1a;
+    opacity: 0;
+    animation: breathe 3s ease-out infinite;
+    z-index: 2;
+  }
+
+  .ring-2 { animation-delay: 1.5s; }
+
+  .stage.recording .ring {
+    border-color: #c0392b;
+    animation-duration: 0.9s;
+  }
+
+  @keyframes breathe {
+    0% { transform: scale(1); opacity: 0.4; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  /* 中心按钮 */
   .voice-btn {
     position: relative;
     width: 56px;
@@ -36,178 +74,129 @@
     border: none;
     z-index: 3;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
   }
 
-  /* 录音状态 — 变红 + 放大 + 脉冲 */
-  .voice-btn.recording {
+  .stage.recording .voice-btn {
     background: #c0392b;
-    transform: scale(1.18);
+    transform: scale(1.1);
     animation: recPulse 1.2s ease-in-out infinite;
   }
 
-  .voice-btn.processing {
+  .stage.processing .voice-btn {
     background: #ff9500;
   }
 
-  .voice-btn.done {
+  .stage.done .voice-btn {
     background: #4cd964;
   }
 
   @keyframes recPulse {
-    0%, 100% { box-shadow: 0 0 0 6px rgba(192, 57, 43, 0.15); }
-    50%      { box-shadow: 0 0 0 12px rgba(192, 57, 43, 0.08); }
+    0%, 100% { box-shadow: 0 0 0 6px rgba(192, 57, 43, 0.2); }
+    50%      { box-shadow: 0 0 0 14px rgba(192, 57, 43, 0.08); }
   }
 
-  /* 麦克风 SVG 图标 */
+  /* 麦克风图标 */
   .mic-icon {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     color: #fafaf7;
-    z-index: 4;
-    transition: opacity 0.2s;
+    stroke-width: 2;
   }
 
-  .voice-btn.recording .mic-icon {
-    opacity: 0;  /* 录音时隐藏图标，显示波形 */
-  }
-
-  /* 波形 Canvas — 覆盖在按钮上 */
-  .wave-canvas {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 56px;
-    height: 56px;
-    pointer-events: none;
-    z-index: 5;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .voice-btn.recording ~ .wave-canvas {
-    opacity: 1;
-  }
-
-  /* 呼吸扩散光环 */
-  .ring {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 56px;
-    height: 56px;
-    margin: -28px 0 0 -28px;
-    border-radius: 50%;
-    border: 1.5px solid #1a1a1a;
-    opacity: 0;
-    animation: breathe 3s ease-out infinite;
-    z-index: 1;
-  }
-
-  .ring-2 {
-    animation-delay: 1.5s;
-  }
-
-  .voice-btn.recording ~ .ring {
-    border-color: #c0392b;
-    animation-duration: 0.9s;
-  }
-
-  @keyframes breathe {
-    0% { transform: scale(1); opacity: 0.35; }
-    100% { transform: scale(2.3); opacity: 0; }
-  }
-
-  /* 计时器/状态标签（处理中/完成时） */
+  /* 计时器/状态标签 */
   .label {
     position: absolute;
-    bottom: -4px;
+    bottom: 4px;
     left: 50%;
     transform: translateX(-50%);
     font-family: 'Segoe UI', 'Consolas', monospace;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     color: #fafaf7;
-    background: rgba(26, 26, 26, 0.9);
-    padding: 2px 8px;
-    border-radius: 8px;
+    background: rgba(26, 26, 26, 0.92);
+    padding: 3px 10px;
+    border-radius: 10px;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.3s;
     z-index: 6;
   }
 
-  .label.visible {
-    opacity: 1;
-  }
+  .label.visible { opacity: 1; }
 </style>
 </head>
 <body>
   <div class="stage" id="stage">
+    <canvas class="wave-canvas" id="waveCanvas"></canvas>
     <span class="ring ring-1"></span>
     <span class="ring ring-2"></span>
     <button class="voice-btn" id="voiceBtn">
-      <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <svg class="mic-icon" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
         <line x1="12" y1="19" x2="12" y2="23"/>
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
     </button>
-    <canvas class="wave-canvas" id="waveCanvas" width="112" height="112"></canvas>
     <div class="label" id="label"></div>
   </div>
 
   <script>
     const { ipcRenderer } = require('electron');
     const stage = document.getElementById('stage');
-    const btn = document.getElementById('voiceBtn');
     const label = document.getElementById('label');
     const canvas = document.getElementById('waveCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Canvas 用 DPR 缩放，提升清晰度
+    // Canvas 使用 DPR 保证高清
+    const W = 140, H = 140, CX = W / 2, CY = H / 2;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = 112 * dpr;
-    canvas.height = 112 * dpr;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
     ctx.scale(dpr, dpr);
-    const W = 112, H = 112, CX = W / 2, CY = H / 2;
 
     let timerInterval = null;
     let startTime = 0;
-    let currentFreqData = new Uint8Array(64); // 从 renderer 收到的频谱数据
-    let rafId = null;
+    let currentFreqData = new Uint8Array(64);
+    let lastDataTime = 0;
     let recording = false;
 
-    // 绘制 28 根放射状波形线（仿 ustrigg.com）
+    // 画 32 根放射状波形线（环绕按钮外部）
     function drawWaveform() {
-      rafId = requestAnimationFrame(drawWaveform);
+      requestAnimationFrame(drawWaveform);
       ctx.clearRect(0, 0, W, H);
+
       if (!recording) return;
 
-      const BARS = 28;
-      const INNER_R = 10;
-      const MAX_EXT = 12;
-      const BASE_EXT = 13;
+      const BARS = 32;
+      const INNER_R = 36;  // 按钮半径 28 + 8 间距，从按钮外部开始画
+      const MAX_EXT = 24;  // 最大延伸长度
+      const MIN_EXT = 4;   // 静音时的最小长度（让线条始终可见）
 
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 2.2;
       ctx.lineCap = 'round';
+
+      // 数据新鲜度检查 — 超过 500ms 没新数据认为掉线
+      const dataFresh = (Date.now() - lastDataTime) < 500;
 
       for (let i = 0; i < BARS; i++) {
         const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2;
-        // 从频谱数据取值 — 如果没有实时数据就用随机微动
-        const freqIdx = i % currentFreqData.length;
-        const amp = currentFreqData[freqIdx] / 255; // 0~1
-        const extLen = BASE_EXT + amp * MAX_EXT;
+        const freqIdx = Math.floor((i / BARS) * currentFreqData.length);
+        const amp = dataFresh ? currentFreqData[freqIdx] / 255 : 0;
+        const extLen = INNER_R + MIN_EXT + amp * MAX_EXT;
 
         const x1 = CX + Math.cos(angle) * INNER_R;
         const y1 = CY + Math.sin(angle) * INNER_R;
         const x2 = CX + Math.cos(angle) * extLen;
         const y2 = CY + Math.sin(angle) * extLen;
 
-        ctx.strokeStyle = `rgba(250, 250, 247, ${0.55 + amp * 0.45})`;
+        // 颜色：数据新鲜时白色，否则暗灰（提示数据异常）
+        const alpha = 0.5 + amp * 0.5;
+        ctx.strokeStyle = dataFresh
+          ? `rgba(255, 255, 255, ${alpha})`
+          : `rgba(120, 120, 120, 0.4)`;
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
@@ -216,10 +205,10 @@
     }
     drawWaveform();
 
-    // 从主窗口 renderer 接收频谱数据
+    // 从主窗口接收频谱数据
     ipcRenderer.on('indicator-waveform-data', (event, data) => {
-      // data 是 Array（IPC 不支持 TypedArray 直传）
       currentFreqData = new Uint8Array(data);
+      lastDataTime = Date.now();
     });
 
     function stopTimer() {
@@ -229,15 +218,15 @@
     ipcRenderer.on('indicator-recording', () => {
       stopTimer();
       recording = true;
-      btn.className = 'voice-btn recording';
+      stage.className = 'stage recording';
       label.classList.remove('visible');
-      // 重置频谱数据（避免启动瞬间残留）
       currentFreqData = new Uint8Array(64);
+      lastDataTime = Date.now();
     });
 
     ipcRenderer.on('indicator-processing', () => {
       recording = false;
-      btn.className = 'voice-btn processing';
+      stage.className = 'stage processing';
       startTime = Date.now();
       label.classList.add('visible');
       timerInterval = setInterval(() => {
@@ -249,7 +238,7 @@
     ipcRenderer.on('indicator-done', () => {
       stopTimer();
       recording = false;
-      btn.className = 'voice-btn done';
+      stage.className = 'stage done';
       label.textContent = '✓';
       label.classList.add('visible');
     });
