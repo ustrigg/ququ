@@ -378,11 +378,11 @@ function createIndicatorWindow() {
   indicatorWindow = new BrowserWindow({
     width: 120,
     height: 120,
-    x: wa.x + wa.width - 140,
-    y: wa.y + wa.height - 140,
-    show: false,
+    x: -10000,  // 初始位置在屏幕外，等第一次 show 时 setPosition 到可见位置
+    y: -10000,
+    show: true, // 保持 show:true 避免 hide/show 循环触发 Windows 透明渲染 bug
     frame: false,
-    transparent: true,  // 圆形需要透明背景
+    transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
@@ -432,16 +432,21 @@ function showIndicator() {
     const cursorPos = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursorPos);
     const wa = display.workArea;
-    indicatorWindow.setPosition(wa.x + wa.width - 140, wa.y + wa.height - 140);
+    const targetX = wa.x + wa.width - 140;
+    const targetY = wa.y + wa.height - 140;
+    indicatorWindow.setPosition(targetX, targetY);
     indicatorWindow.showInactive();
     indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+    // 强制 Windows 透明窗口刷新渲染：hide→show 后 Canvas 合成层可能冻结
+    // moveTop + 轻微 resize 可触发重绘
+    indicatorWindow.moveTop();
     // 只有 indicator 已 ready 才立即发送；否则缓存，等 ready 事件后再发
     if (indicatorReady) {
       indicatorWindow.webContents.send('indicator-recording');
-      console.log('[Indicator] Shown + sent recording state');
+      console.log('[Indicator] Shown at', targetX, targetY, 'display', display.id);
     } else {
       pendingIndicatorState = 'recording';
-      console.log('[Indicator] Shown (pending recording state until ready)');
+      console.log('[Indicator] Shown at', targetX, targetY, '(pending)');
     }
   };
 
@@ -488,8 +493,10 @@ function indicatorDone() {
 
 function hideIndicator() {
   if (indicatorWindow && !indicatorWindow.isDestroyed()) {
-    indicatorWindow.hide();
-    console.log('[Indicator] Hidden');
+    // 不用 hide() — Windows 透明窗口 hide→show 会导致 canvas 渲染冻结
+    // 改为移到屏幕外（保持窗口活跃，仅视觉上消失）
+    indicatorWindow.setPosition(-10000, -10000);
+    console.log('[Indicator] Hidden (moved off-screen)');
   }
 }
 
