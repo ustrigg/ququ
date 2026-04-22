@@ -172,8 +172,8 @@
       }
       const normalize = recentPeak > 10 ? (255 / recentPeak) : 1;
 
-      // 旋转速度随响度变化：静音时慢转（0.3°/帧），大声时快转（最高 2°/帧）
-      const rotSpeed = (0.3 + avgAmp * 1.7) * Math.PI / 180;
+      // 旋转速度：静音 0.6°/帧=36°/s (一圈 10 秒)，大声最高 2.5°/帧=150°/s
+      const rotSpeed = (0.6 + avgAmp * 1.9) * Math.PI / 180;
       rotationOffset += rotSpeed;
 
       for (let i = 0; i < BARS; i++) {
