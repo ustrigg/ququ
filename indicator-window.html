@@ -138,6 +138,8 @@
     // 动态归一化
     let recentPeak = 50;
     let smoothedBars = new Float32Array(28);
+    // 整体旋转角度（持续累加，让波形轮盘转动）
+    let rotationOffset = 0;
 
     // 画 28 根放射线，从中心向外，最远到按钮边缘内侧（半径 26）
     function drawWaveform() {
@@ -170,8 +172,12 @@
       }
       const normalize = recentPeak > 10 ? (255 / recentPeak) : 1;
 
+      // 旋转速度随响度变化：静音时慢转（0.3°/帧），大声时快转（最高 2°/帧）
+      const rotSpeed = (0.3 + avgAmp * 1.7) * Math.PI / 180;
+      rotationOffset += rotSpeed;
+
       for (let i = 0; i < BARS; i++) {
-        const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2;
+        const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2 + rotationOffset;
         const freqIdx = Math.floor((i / BARS) * currentFreqData.length);
         const rawAmp = dataFresh ? (currentFreqData[freqIdx] / 255) : 0;
 
