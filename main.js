@@ -376,10 +376,10 @@ function createIndicatorWindow() {
   console.log('[Indicator] Display workArea:', JSON.stringify(wa));
 
   indicatorWindow = new BrowserWindow({
-    width: 80,
-    height: 80,
-    x: wa.x + wa.width - 100,
-    y: wa.y + wa.height - 100,
+    width: 120,
+    height: 120,
+    x: wa.x + wa.width - 140,
+    y: wa.y + wa.height - 140,
     show: false,
     frame: false,
     transparent: true,  // 圆形需要透明背景
@@ -427,11 +427,11 @@ function showIndicator() {
     const cursorPos = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursorPos);
     const wa = display.workArea;
-    indicatorWindow.setPosition(wa.x + wa.width - 100, wa.y + wa.height - 100);
+    indicatorWindow.setPosition(wa.x + wa.width - 140, wa.y + wa.height - 140);
     indicatorWindow.showInactive();
     indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
     indicatorWindow.webContents.send('indicator-recording');
-    console.log('[Indicator] Shown at', wa.x + wa.width - 100, wa.y + wa.height - 100);
+    console.log('[Indicator] Shown at', wa.x + wa.width - 140, wa.y + wa.height - 140);
   };
 
   if (indicatorWindow.webContents.isLoading()) {

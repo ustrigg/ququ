@@ -15,8 +15,8 @@
 
   .stage {
     position: relative;
-    width: 80px;
-    height: 80px;
+    width: 120px;
+    height: 120px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -65,6 +65,7 @@
   .stage.recording .mic-icon { opacity: 0; }
 
   /* 波形 Canvas — 置顶（z-index 最高），盖在按钮和 mic-icon 之上 */
+  /* 使用 will-change 和 translate3d 强制提升到独立合成层，避免被按钮的 transform 合成层遮挡 */
   .wave-canvas {
     position: absolute;
     top: 50%;
@@ -75,9 +76,16 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    z-index: 10;  /* 最顶层 */
+    z-index: 999;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
   }
   .stage.recording .wave-canvas { opacity: 1; }
+  /* 录音时按钮放大了，canvas 也对应放大以匹配 */
+  .stage.recording .wave-canvas {
+    transform: translate3d(0, 0, 0) scale(1.1);
+    opacity: 1;
+  }
 
   /* 底部计时器浮标 */
   .label {
