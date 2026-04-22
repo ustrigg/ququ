@@ -65,27 +65,21 @@
   .stage.recording .mic-icon { opacity: 0; }
 
   /* 波形 Canvas — 置顶（z-index 最高），盖在按钮和 mic-icon 之上 */
-  /* 使用 will-change 和 translate3d 强制提升到独立合成层，避免被按钮的 transform 合成层遮挡 */
+  /* 尺寸 64x64（大于按钮放大后的 61.6px），始终固定位置不随按钮 transform */
   .wave-canvas {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 56px;
-    height: 56px;
-    margin: -28px 0 0 -28px;
+    width: 64px;
+    height: 64px;
+    margin: -32px 0 0 -32px;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
     z-index: 999;
-    will-change: transform;
-    transform: translate3d(0, 0, 0);
+    will-change: opacity;
   }
   .stage.recording .wave-canvas { opacity: 1; }
-  /* 录音时按钮放大了，canvas 也对应放大以匹配 */
-  .stage.recording .wave-canvas {
-    transform: translate3d(0, 0, 0) scale(1.1);
-    opacity: 1;
-  }
 
   /* 底部计时器浮标 */
   .label {
@@ -120,7 +114,7 @@
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
     </button>
-    <canvas class="wave-canvas" id="waveCanvas" width="56" height="56"></canvas>
+    <canvas class="wave-canvas" id="waveCanvas" width="64" height="64"></canvas>
     <div class="label" id="label"></div>
   </div>
 
@@ -131,8 +125,8 @@
     const canvas = document.getElementById('waveCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Canvas 56x56，中心 (28,28)，按钮半径约 28
-    const CX = 28, CY = 28;
+    // Canvas 64x64（大于按钮放大后的 61.6px），中心 (32,32)
+    const CX = 32, CY = 32;
 
     let timerInterval = null;
     let startTime = 0;
@@ -148,13 +142,13 @@
     // 画 28 根放射线，从中心向外，最远到按钮边缘内侧（半径 26）
     function drawWaveform() {
       requestAnimationFrame(drawWaveform);
-      ctx.clearRect(0, 0, 56, 56);
+      ctx.clearRect(0, 0, 64, 64);
       if (!recording) return;
 
       const BARS = 28;
       const INNER_R = 3;   // 从中心半径 3 开始（极近中心）
-      const QUIET_R = 6;   // 静音时的基线长度
-      const MAX_R = 26;    // 最大长度（按钮半径 28，留 2px 边距）
+      const QUIET_R = 7;   // 静音时的基线长度
+      const MAX_R = 30;    // 最大长度（按钮放大后半径 30.8，留 0.8px 边距）
 
       ctx.lineWidth = 1.8;
       ctx.lineCap = 'round';
@@ -243,7 +237,7 @@
       lastDataTime = Date.now();
       smoothedBars = new Float32Array(28);
       recentPeak = 50;
-      ctx.clearRect(0, 0, 56, 56);
+      ctx.clearRect(0, 0, 64, 64);
     });
 
     ipcRenderer.on('indicator-processing', () => {
