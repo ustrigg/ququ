@@ -882,21 +882,19 @@ function startWaveformVisualization(stream) {
 
         console.log('[Waveform] Visualization started');
 
-        // 为向 indicator 发送频谱数据做节流计数
-        let frameCounter = 0;
+        // 独立 IPC 发送定时器：setInterval 不受后台节流影响，保证 30fps 送达 indicator
+        // 主窗口被最小化/后台时 requestAnimationFrame 会降频到 1fps，但 setInterval 不会
+        if (window._waveformIpcTimer) clearInterval(window._waveformIpcTimer);
+        window._waveformIpcTimer = setInterval(() => {
+            if (!analyser) return;
+            analyser.getByteFrequencyData(dataArray);
+            ipcRenderer.send('waveform-data', Array.from(dataArray));
+        }, 33); // 30fps
 
-        // Animation loop
+        // Animation loop (仅用于主窗口自己的画布显示，后台时会被节流但无所谓)
         function draw() {
             animationFrameId = requestAnimationFrame(draw);
-
             analyser.getByteFrequencyData(dataArray);
-
-            // 每 2 帧向 indicator 发一次频谱数据（约 30fps，避免 IPC 过载）
-            frameCounter++;
-            if (frameCounter % 2 === 0) {
-                // TypedArray 不能直接 IPC 传输，转为普通数组
-                ipcRenderer.send('waveform-data', Array.from(dataArray));
-            }
 
             canvasCtx.fillStyle = 'rgba(102, 126, 234, 0.1)';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
@@ -936,6 +934,12 @@ function stopWaveformVisualization() {
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null;
+        }
+
+        // 清理独立的 IPC 发送定时器
+        if (window._waveformIpcTimer) {
+            clearInterval(window._waveformIpcTimer);
+            window._waveformIpcTimer = null;
         }
 
         if (audioContext) {
