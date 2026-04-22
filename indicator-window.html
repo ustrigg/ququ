@@ -270,6 +270,11 @@
     stage.addEventListener('click', () => {
       ipcRenderer.send('indicator-clicked');
     });
+
+    // 所有 IPC 监听器已注册，通知主进程"我准备好了"
+    // 这样主进程在此之前发送的消息不会丢失
+    ipcRenderer.send('indicator-ready');
+    console.log('[Indicator] Ready signal sent to main');
   </script>
 </body>
 </html>

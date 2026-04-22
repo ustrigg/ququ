@@ -412,12 +412,17 @@ function createIndicatorWindow() {
 
 // 挂起的 hide 定时器 — 新录音开始时需要取消
 let indicatorHideTimer = null;
+// indicator 是否已准备好接收 IPC（由 indicator 加载完成后主动通知）
+let indicatorReady = false;
+// 如果 showIndicator 在 indicator 还没 ready 时调用，缓存 pending 状态
+let pendingIndicatorState = null;
 
 function showIndicator() {
   if (!config.floatingIndicator) return;
   // 取消任何挂起的 hide 定时器（避免刚显示又被隐藏）
   if (indicatorHideTimer) { clearTimeout(indicatorHideTimer); indicatorHideTimer = null; }
   if (!indicatorWindow || indicatorWindow.isDestroyed()) {
+    indicatorReady = false; // 新建窗口重置 ready 标志
     createIndicatorWindow();
   }
 
@@ -430,21 +435,35 @@ function showIndicator() {
     indicatorWindow.setPosition(wa.x + wa.width - 140, wa.y + wa.height - 140);
     indicatorWindow.showInactive();
     indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
-    indicatorWindow.webContents.send('indicator-recording');
-    console.log('[Indicator] Shown at', wa.x + wa.width - 140, wa.y + wa.height - 140);
+    // 只有 indicator 已 ready 才立即发送；否则缓存，等 ready 事件后再发
+    if (indicatorReady) {
+      indicatorWindow.webContents.send('indicator-recording');
+      console.log('[Indicator] Shown + sent recording state');
+    } else {
+      pendingIndicatorState = 'recording';
+      console.log('[Indicator] Shown (pending recording state until ready)');
+    }
   };
 
-  if (indicatorWindow.webContents.isLoading()) {
-    indicatorWindow.webContents.once('did-finish-load', doShow);
-  } else {
+  // 始终使用 did-finish-load 确保 JS 已执行（即使 loadFile 已完成）
+  // 如果已经 ready，直接 show；否则等待 ready
+  if (indicatorReady) {
     doShow();
+  } else {
+    // 注意：不能用 isLoading 判断因为 loadFile 可能尚未调度到事件循环
+    // 改为监听 indicator 主动发送的 'indicator-ready' 信号
+    indicatorWindow.webContents.once('did-finish-load', doShow);
   }
 }
 
 // 切换到处理中状态（橙色计时器）
 function indicatorProcessing() {
   if (!indicatorWindow || indicatorWindow.isDestroyed()) return;
-  indicatorWindow.webContents.send('indicator-processing');
+  if (indicatorReady) {
+    indicatorWindow.webContents.send('indicator-processing');
+  } else {
+    pendingIndicatorState = 'processing';
+  }
   console.log('[Indicator] Processing - timer started');
 }
 
@@ -1511,6 +1530,18 @@ ipcMain.on('indicator-clicked', () => {
   console.log('[Main] Indicator clicked, stopping recording');
   if (isRecording) {
     stopRecording();
+  }
+});
+
+// indicator 加载完成后主动通知主进程：IPC 监听器已就绪
+ipcMain.on('indicator-ready', () => {
+  console.log('[Main] Indicator window is READY to receive IPC');
+  indicatorReady = true;
+  // 如有缓存的状态，立即 flush
+  if (pendingIndicatorState && indicatorWindow && !indicatorWindow.isDestroyed()) {
+    console.log('[Main] Flushing pending state:', pendingIndicatorState);
+    indicatorWindow.webContents.send('indicator-' + pendingIndicatorState);
+    pendingIndicatorState = null;
   }
 });
 
