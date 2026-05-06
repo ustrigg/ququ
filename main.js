@@ -684,8 +684,7 @@ function registerHotkeys() {
 
     const success1 = globalShortcut.register(recordHotkey, () => {
       console.log('Record hotkey PRESSED:', recordHotkey, 'at', Date.now());
-      recordingTriggerSource = 'hotkey';
-      toggleRecording();
+      handleRecordHotkey('hotkey');  // 支持双击取消
     });
     console.log('Record hotkey registered:', recordHotkey, 'success:', success1);
     if (!success1) {
@@ -740,7 +739,7 @@ function registerHotkeys() {
       globalShortcut.unregister(quickHotkey);
       const success4 = globalShortcut.register(quickHotkey, () => {
         console.log('Quick trigger hotkey PRESSED:', quickHotkey, 'at', Date.now());
-        toggleRecording();
+        handleRecordHotkey('hotkey');  // 支持双击取消
       });
       console.log('Quick trigger hotkey registered:', quickHotkey, 'success:', success4);
       if (!success4) {
@@ -895,6 +894,48 @@ function stopRecording() {
 }
 
 // 取消录音：停止录音并丢弃音频，不进入转写流程
+// 双击热键检测：单击=开始/停止，双击=取消（仅录音中生效）
+let _hotkeyLastPress = 0;
+let _hotkeyPendingTimer = null;
+const DOUBLE_CLICK_THRESHOLD = 400; // ms
+
+function handleRecordHotkey(triggerSource = 'hotkey') {
+  const now = Date.now();
+  recordingTriggerSource = triggerSource;
+
+  // IDLE 状态：立即开始录音（无延迟，不需要等双击）
+  if (!isRecording) {
+    if (_hotkeyPendingTimer) { clearTimeout(_hotkeyPendingTimer); _hotkeyPendingTimer = null; }
+    _hotkeyLastPress = 0;
+    toggleRecording();
+    return;
+  }
+
+  // RECORDING 状态：检测双击
+  // 双击 = 距离上次按下 < 400ms
+  if (_hotkeyLastPress && (now - _hotkeyLastPress) < DOUBLE_CLICK_THRESHOLD) {
+    // ★ 双击！取消录音
+    console.log('>>> [Hotkey] DOUBLE CLICK detected, cancelling recording');
+    if (_hotkeyPendingTimer) { clearTimeout(_hotkeyPendingTimer); _hotkeyPendingTimer = null; }
+    _hotkeyLastPress = 0;
+    cancelRecording();
+    return;
+  }
+
+  // 第一次按下（录音中），延迟 400ms 等待第二次双击
+  _hotkeyLastPress = now;
+  if (_hotkeyPendingTimer) clearTimeout(_hotkeyPendingTimer);
+  _hotkeyPendingTimer = setTimeout(() => {
+    _hotkeyPendingTimer = null;
+    _hotkeyLastPress = 0;
+    // 单击：停止录音并转写
+    if (isRecording) {
+      console.log('>>> [Hotkey] SINGLE CLICK confirmed, stopping recording');
+      toggleRecording();
+    }
+  }, DOUBLE_CLICK_THRESHOLD);
+}
+
 function cancelRecording() {
   const now = Date.now();
   console.log('========================================');
@@ -1147,8 +1188,7 @@ ipcMain.handle('save-config', (event, newConfig) => {
     globalShortcut.unregister(oldRecordHotkey);
     const success = globalShortcut.register(newConfig.hotkey, () => {
       console.log('Record hotkey PRESSED:', newConfig.hotkey, 'at', Date.now());
-      recordingTriggerSource = 'hotkey';
-      toggleRecording();
+      handleRecordHotkey('hotkey');
     });
     console.log('Recording hotkey re-registered:', newConfig.hotkey, 'success:', success);
   }
@@ -1184,8 +1224,7 @@ ipcMain.handle('save-config', (event, newConfig) => {
     if (newConfig.quickTriggerHotkey) {
       const success = globalShortcut.register(newConfig.quickTriggerHotkey, () => {
         console.log('Quick trigger hotkey PRESSED:', newConfig.quickTriggerHotkey, 'at', Date.now());
-        recordingTriggerSource = 'hotkey';
-        toggleRecording();
+        handleRecordHotkey('hotkey');
       });
       console.log('Quick trigger hotkey re-registered:', newConfig.quickTriggerHotkey, 'success:', success);
     }
